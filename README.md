@@ -9,7 +9,7 @@ The HTML summary is hosted by shinyapps.io and is available at https://mlynch98.
 
 This HTML summary, produced in RMarkdown, showcases Premier League results, xG and shot data from the 2020/21 season. The user selects a player from a drop-down menu, and is presented with a summary of their team's performance (including games won, drawn and lost and their league rank) as well as their individual performance (including goals, xG, assists and xA). Such a summary is useful as it allows the user to evaluate a certain player and use the visualisations provided to understand the context behind their xG/xA, which can often be difficult to interpret.
 
-An interactive pitch illustrates the positions of shots taken by the player which resulted in a goal. When the user hovers over a data point, the following information is provided:
+An interactive pitch illustrates the position of shots taken by the player which resulted in a goal. When the user hovers over a data point, the following information is provided:
 
 •	The opponent against which the goal was scored
 
