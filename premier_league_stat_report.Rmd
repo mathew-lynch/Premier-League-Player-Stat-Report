@@ -1,0 +1,463 @@
+---
+title: "Premier League 2020/2021 Player Stat Report"
+output: 
+  html_document:
+    theme: united
+    highlight: tango
+    includes:
+      after_body: footer.html
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+# Load modules required for analysis
+library(tidyverse)
+library(rvest)
+library(ggplot2)
+library(ggiraph)
+library(ggrepel)
+library(scales)
+library(pracma)
+library(RColorBrewer)
+library(fmsb)
+
+# Team names - these are different for different data sources (i.e. ESPN and Understat)
+results_team_names = c("Arsenal", "Aston Villa", "Brighton & Hove Albion", "Burnley", "Chelsea",
+                       "Crystal Palace", "Everton", "Fulham", "Leeds United", "Leicester City",
+                       "Liverpool", "Manchester City", "Manchester United", "Newcastle United",
+                       "Sheffield United", "Southampton", "Tottenham Hotspur", 
+                       "West Bromwich Albion","West Ham United", "Wolverhampton Wanderers")
+
+xG_team_names = c("Arsenal", "Aston Villa", "Brighton", "Burnley", "Chelsea",
+                  "Crystal Palace", "Everton", "Fulham", "Leeds", "Leicester",
+                  "Liverpool", "Manchester City", "Manchester United", "Newcastle United",
+                  "Sheffield United", "Southampton", "Tottenham", "West Bromwich Albion",
+                  "West Ham", "Wolverhampton Wanderers")
+
+# 1. Results analysis
+
+# Scrape results for every Premier league team
+source("scrape_results.R")
+full_results = scrape_results()
+
+# Calculate home/away win/draw/loss totals and percentages for a PARTICULAR team
+source("process_data.R")
+source("home_and_away.R")
+
+# Calculate win/draw/loss totals and percentages for home and away games for EVERY team
+source("summary_all.R")
+processed_results = summary_all(full_results, team_names)
+
+# Calculate home and away rankings
+source("home_and_away_rankings.R")
+home_rankings <- home_rankings(processed_results, team_names)
+away_rankings <- away_rankings(processed_results, team_names)
+
+# Make team names consistent across all dataframes
+home_rankings <- replace(home_rankings, home_rankings == "Brighton & Hove Albion", "Brighton")
+home_rankings <- replace(home_rankings, home_rankings == "Leeds United", "Leeds")
+home_rankings <- replace(home_rankings, home_rankings == "Leicester City", "Leicester")
+home_rankings <- replace(home_rankings, home_rankings == "Tottenham Hotspur", "Tottenham")
+home_rankings <- replace(home_rankings, home_rankings == "West Ham United", "West Ham")
+
+away_rankings <- replace(away_rankings, away_rankings == "Brighton & Hove Albion", "Brighton")
+away_rankings <- replace(away_rankings, away_rankings == "Leeds United", "Leeds")
+away_rankings <- replace(away_rankings, away_rankings == "Leicester City", "Leicester")
+away_rankings <- replace(away_rankings, away_rankings == "Tottenham Hotspur", "Tottenham")
+away_rankings <- replace(away_rankings, away_rankings == "West Ham United", "West Ham")
+
+# 2. Team xG
+
+# Scrape team xG data
+source("teams_data.R")
+team_xG <- get_team_data()
+
+# Calculate differences between goals/points and expected goals/points
+team_xG <- team_xG %>% 
+  add_column(Goals_minus_xG = team_xG$Goals - team_xG$xG,
+             GA_minus_xGA = team_xG$GA - team_xG$xGA,
+             Points_minus_xPTS = team_xG$Points - team_xG$xPTS)
+
+# Create a league ordered by xPTS (expected points)
+league_by_xpts <- team_xG %>%
+  select(Team, Matches, Wins, Draws, Losses, Goals, GA, Points, xG, xGA, xPTS) %>%
+  arrange(-xPTS)
+
+
+# 3. Player xG
+
+# Scrape player xG data
+source("players_data.R")
+player_xG <- get_player_data()
+
+# Apostrophes have been encoded strangely - this is corrected
+player_xG$player_name <- gsub("&#039;", "'", player_xG$player_name)
+```
+
+***
+
+Data from ESPN.co.uk Premier League results: espn.co.uk/football/ and understat.com Expected goals (xG) and shot data: understat.com/league/EPL accessed on `r format(Sys.Date(), "%d-%m-%Y")`.
+
+```{r, echo=FALSE}
+# Select a player
+selectInput("player", "Select a player: ",
+            choices = player_xG$player_name,
+            selected = "Harry Kane",
+            multiple = FALSE)
+
+# Determine team of player chosen
+team <- reactive({
+  player_xG$team_title[player_xG$player_name == input$player]
+})
+```
+
+`r renderUI({HTML(paste("<b>Player:</b>", input$player, 
+  sep = " ", collapse = ", "))})`
+
+`r renderUI({HTML(paste("<b>Team:</b>", team(), 
+  sep = " ", collapse = ", "))})`
+  
+```{r, echo=FALSE}
+# Calculate number of wins, draws and losses for the player's team
+wins <- reactive({
+  team_xG$Wins[team_xG$Team == team()]
+}) 
+
+draws <- reactive({
+  team_xG$Draws[team_xG$Team == team()]
+})
+
+losses <- reactive({
+  team_xG$Losses[team_xG$Team == team()]
+})
+```
+
+```{r, echo=FALSE}
+# Calculate home/away win percentage and rankings
+home_win <- reactive({
+  home_rankings$PERCENTAGE[home_rankings$TEAM == team() & home_rankings$OUTCOME == "WIN"]
+})
+
+home_win_ranking <- reactive({
+  home_rankings$RANK[home_rankings$TEAM == team() & home_rankings$OUTCOME == "WIN"]
+})
+
+away_win <- reactive({
+  away_rankings$PERCENTAGE[away_rankings$TEAM == team() & away_rankings$OUTCOME == "WIN"]
+})
+
+away_win_ranking <- reactive({
+  away_rankings$RANK[away_rankings$TEAM == team() & away_rankings$OUTCOME == "WIN"]
+})
+
+```
+
+```{r, echo=FALSE}
+# Calculate number of goals, xG and xG delta
+goals <- reactive({
+  player_xG$goals[player_xG$player_name == input$player]
+})
+
+xG <- reactive({
+  player_xG$xG[player_xG$player_name == input$player]
+})
+
+xG_delta <- reactive({
+  goals() - xG()
+})
+
+# Add underperforming/overperforming information
+player_xG <- player_xG %>%
+  mutate(Performance = case_when(
+    goals - xG > 0 ~ "overperformed",
+    goals - xG < 0 ~ "underperformed",
+    goals - xG == 0 ~ "matched"
+  ))
+
+player_xG <- player_xG %>%
+  mutate(Pos_Neg = case_when(
+    goals - xG > 0 ~ "positive",
+    goals - xG < 0 ~ "negative",
+    goals - xG == 0 ~ "neutral"
+  ))
+
+performance <- reactive({
+  player_xG$Performance[player_xG$player_name == input$player]
+})
+
+pos_neg <- reactive({
+  player_xG$Pos_Neg[player_xG$player_name == input$player]
+})
+```
+
+```{r, echo=FALSE}
+# Calculate number of assists, xA and xA delta
+assists <- reactive({
+  player_xG$assists[player_xG$player_name == input$player]
+})
+
+xA <- reactive({
+  player_xG$xA[player_xG$player_name == input$player]
+})
+
+xA_delta <- reactive({
+  assists() - xA()
+})
+
+# Add underperforming/overperforming information
+player_xG <- player_xG %>%
+  mutate(Performance_A = case_when(
+    assists - xA > 0 ~ "overperformed",
+    assists - xA < 0 ~ "underperformed",
+    assists - xA == 0 ~ "matched"
+  ))
+
+player_xG <- player_xG %>%
+  mutate(Pos_Neg_A = case_when(
+    assists - xA > 0 ~ "positive",
+    assists - xA < 0 ~ "negative",
+    assists - xA == 0 ~ "neutral"
+  ))
+
+performance_A <- reactive({
+  player_xG$Performance_A[player_xG$player_name == input$player]
+})
+
+pos_neg_A <- reactive({
+  player_xG$Pos_Neg_A[player_xG$player_name == input$player]
+})
+```
+
+`r renderUI({HTML(paste("<b>", team(), "</b>"))})` won `r renderText({wins()})` of their 38 matches in the 2020/2021 Premier League season, drawing `r renderText({draws()})` and losing the remaining `r renderText({losses()})`.
+
+Their home win percentage of `r renderText({label_percent()(home_win())})` ranked `r renderText({home_win_ranking()})` in the league, and their away win percentage of `r renderText({label_percent()(away_win())})` ranked at `r renderText({away_win_ranking()})`.
+
+`r renderUI({HTML(paste("<b>", input$player, "</b>"))})` scored `r renderText({goals()})` goals in the 2020/2021 season from an xG of `r renderText({round(xG(),2)})`, a `r renderText({pos_neg()})` delta of `r renderText({round(xG_delta(),2)})`. This means that he `r renderText({performance()})` his xG this season.
+
+The `r renderUI({HTML(paste("<b>", team(), "</b>"))})` player also had an xA of `r renderText({round(xA(),2)})`, from which he recorded `r renderText({assists()})` assists, a `r renderText({pos_neg_A()})` delta of `r renderText({round(xA_delta(),2)})`. He `r renderText({performance_A()})` his xA this season.
+
+***
+
+```{r, echo = FALSE}
+# This code was sourced from https://github.com/FCrSTATS/StatsBomb_WomensData
+# Create shot map
+create_ShotMap <- function(grass_colour, line_colour, background_colour, goal_colour){
+
+  theme_blankPitch = function(size=12) {
+    theme(
+      #axis.line=element_blank(),
+      axis.text.x=element_blank(),
+      axis.text.y=element_blank(),
+      #axis.ticks.y=element_text(size=size),
+      #   axis.ticks=element_blank(),
+      axis.ticks.length=unit(0, "lines"),
+      #axis.ticks.margin=unit(0, "lines"),
+      axis.title.x=element_blank(),
+      axis.title.y=element_blank(),
+      legend.background=element_rect(fill=background_colour, colour=NA),
+      legend.key=element_rect(colour=background_colour,fill=background_colour),
+      legend.key.size=unit(1.2, "lines"),
+      legend.text=element_text(size=size),
+      legend.title=element_text(size=size, face="bold",hjust=0),
+      strip.background = element_rect(colour = background_colour, fill = background_colour, 
+                                      size = .5),
+      panel.background=element_rect(fill=background_colour,colour=background_colour),
+      panel.grid.major=element_blank(),
+      panel.grid.minor=element_blank(),
+      panel.spacing=element_blank(),
+      plot.background=element_blank(),
+      plot.margin=unit(c(0, 0, 0, 0), "lines"),
+      plot.title=element_text(size=size*1.2),
+      strip.text.y=element_text(colour=background_colour,size=size,angle=270),
+      strip.text.x=element_text(size=size*1))}
+
+  ymin <- 0 # minimum width
+  ymax <- 100 # maximum width
+  xmin <- 50 # minimum length
+  xmax <- 100 # maximum length
+
+  # Defining features along the length
+  boxEdgeOff <- 83
+  sixYardOff <- 94
+  penSpotOff <- 88
+  halfwayline <- 50
+
+  # Defining features along the width
+  boxEdgeLeft <- 18
+  boxEdgeRight <- 82
+  sixYardLeft <- 35
+  sixYardRight <- 65
+  goalPostLeft <- 46
+  goalPostRight <- 54
+  CentreSpot <- 50
+
+  # other dimensions
+  centreCirle_d <- 20
+
+  # define the circle function
+  circleFun <- function(center = c(0,0),diameter = 1, npoints = 100){
+    r = diameter / 2
+    tt <- seq(0,2*pi,length.out = npoints)
+    xx <- center[1] + r * cos(tt)
+    yy <- center[2] + r * sin(tt)
+    return(data.frame(x = xx, y = yy))
+  }
+  
+  #### create leftD arc ####
+  dArc <- circleFun(c((50),(penSpotOff)),centreCirle_d,npoints = 1000)
+  ## remove part that is in the box
+  dArc <- dArc[which(dArc$y <= (boxEdgeOff)),]
+
+  ## initiate the plot, set some boundaries to the plot
+  p <- ggplot() + xlim(c(ymin,ymax)) + ylim(c(xmin,xmax)) +
+    # add the theme
+    theme_blankPitch() +
+    # add the base rectangle of the pitch
+    geom_rect(aes(xmin=ymin, xmax=ymax, ymin=xmin, ymax=xmax), fill = grass_colour, 
+              colour = line_colour) +
+    # add the 18 yard box offensive
+    geom_rect(aes(xmin=boxEdgeLeft, xmax=boxEdgeRight, ymin=boxEdgeOff, ymax=xmax), 
+              fill = grass_colour, colour = line_colour) +
+    # add the six yard box offensive
+    geom_rect(aes(xmin=sixYardLeft, xmax=sixYardRight, ymin=sixYardOff, ymax=xmax), 
+              fill = grass_colour, colour = line_colour) +
+    # add the arc circle
+    geom_path(data=dArc, aes(x=x,y=y), colour = line_colour) +
+    # add the goal offensive
+    geom_segment(aes(x = goalPostLeft, y = xmax, xend = goalPostRight, yend = xmax),
+                 colour = goal_colour, size = 1)
+
+  return(p)
+
+}
+```
+
+```{r, echo=FALSE}
+# Spider/radar chart
+spider_data = reactive({
+  player_xG %>%
+    filter(player_name == input$player) %>%
+    select(player_name, xG90, xA90, npxG90, xgChain90, xgBuildup90) %>%
+    column_to_rownames('player_name')
+})
+
+# Add the maximum, minimum row value
+final_data <- reactive({
+  rbind(rep(max(spider_data()), 5), rep(0, 5), spider_data())
+})
+
+source("shot_data.R")
+shots_data <- reactive({(
+  if (player_xG$goals[player_xG$player_name == input$player] == 0) {
+    a = data.frame()
+  } else {
+    a = shot_data(input$player, player_xG)
+  })
+  return(a)
+})
+
+# Filter by 2020/2021 season and by goals
+season_goals <- reactive({(
+  if (nrow(shots_data()) == 0) {
+    b = data.frame()
+  } else {
+    b = shots_data()[shots_data()$year == "2020" & shots_data()$result == "Goal",]
+  })
+  return(b)
+})
+
+
+# Separate out penalties
+penalties <- reactive({(
+  if (nrow(season_goals()[season_goals()$situation == "Penalty",]) == 0) {
+    c = data.frame()
+  } else {
+    c = season_goals()[season_goals()$situation == "Penalty",]
+  })
+  return(c)
+})
+
+## Plot the base shot map
+p <- create_ShotMap("#538032", "#ffffff", "#538032", "#000000")
+
+gg_point <- reactive({(
+  # For players who didn't score a single goal
+  if (isempty(season_goals())) {
+    d = p + 
+  geom_text(aes(x = 2, y=59,label = input$player), hjust=0, vjust=0.5, size = 7, colour = "#ffffff")+
+  geom_text(aes(x = 2, y=56,label = paste0("Expected Goals (xG): ",round(xG(),2))), hjust=0, vjust = 0.5, size = 5) +
+    geom_text(aes(x = 2, y=54, label = paste0("Actual Goals: ", round(goals(), 2))), hjust=0, vjust=0.5, size=5) +
+    geom_text(aes(x = 2, y=52, label = paste0("Delta: ", round(xG_delta(),2))), hjust=0, vjust=0.5, size=5) +
+      scale_size(name = "xG")
+  # For players who scored at least one goal but no penalties  
+  } else if (!isempty(season_goals()) && isempty(penalties())) {
+    d = p + geom_point_interactive(data = season_goals(), aes(x=(1-Y)*100, y=X*100, size=round(xG,1), tooltip=paste0("vs. ", Opponent, "\n xG: ", round(xG,2), "\n Last action: ", lastAction)), colour = "#ffffff") +
+  geom_text(aes(x = 2, y=59,label = input$player), hjust=0, vjust=0.5, size = 7, colour = "#ffffff")+
+  geom_text(aes(x = 2, y=56,label = paste0("Expected Goals (xG): ",round(xG(),2))), hjust=0, vjust = 0.5, size = 5) +
+    geom_text(aes(x = 2, y=54, label = paste0("Actual Goals: ", round(goals(), 2))), hjust=0, vjust=0.5, size=5) +
+    geom_text(aes(x = 2, y=52, label = paste0("Delta: ", round(xG_delta(),2))), hjust=0, vjust=0.5, size=5)  +
+      scale_size(name = "xG")
+  # For players who scored at least one goal and at least one penalty  
+  } else {
+    d = p + geom_point_interactive(data = season_goals(), aes(x=(1-Y)*100, y=X*100, size=round(xG,1), tooltip=paste0("vs. ", Opponent, "\n xG: ", round(xG,2), "\n Last action: ", lastAction)), colour = "#ffffff") +
+    
+    geom_point_interactive(data = penalties(), aes(x=(1-Y)*100,y=X*100,size=xG,
+                                                   tooltip=paste0("Goals scored from penalties: ", nrow(penalties()))),colour = "#000000") + 
+    
+  geom_text(aes(x = 2, y=59,label = input$player), hjust=0, vjust=0.5, size = 7, colour = "#ffffff")+
+  geom_text(aes(x = 2, y=56,label = paste0("Expected Goals (xG): ",round(xG(),2))), hjust=0, vjust = 0.5, size = 5) +
+    geom_text(aes(x = 2, y=54, label = paste0("Actual Goals: ", round(goals(), 2))), hjust=0, vjust=0.5, size=5) +
+    geom_text(aes(x = 2, y=52, label = paste0("Delta: ", round(xG_delta(),2))), hjust=0, vjust=0.5, size=5)  +
+      scale_size(name = "xG")
+  }
+  
+  
+)
+  return(d)
+})
+
+fluidRow(
+  
+  column(h4("Shot position of goals scored"),
+    p("When hovering over a point, the following is displayed:", br(), br(
+                      "1. Opponent against which goal was scored", br(), br(
+                        "2. xG associated with the shot", br(), br(
+                          "3. The action which led to the shot being taken", br(), br(
+                            "Goals scored from penalties are coloured in black"
+                          )))),
+                    style="color:black;text-align:left"),
+                  width=6,style="background-color:lavender;border-radius: 10px;height: 300px"),
+  
+  column(h4("Visualising player performance"),
+    p("Explanation of terms:", br(), br(
+                    "1. xG90/xA90 = Expected goals/assists per 90 minutes", br(), br(
+                      "2. npxG90 = Non-penalty expected goals per 90 minutes", br(), br(
+                        "3. xgChain90 = Total xG of every possession the player is involved in
+                        per 90 minutes", br(), br(
+                          "4. xgBuildup90 = Total xG of every possession the player is involved
+                          in without key passes and shots per 90 minutes"
+                        )))),
+                    style="color:black;text-align:left"),
+                  width=6,style="background-color:lavender;border-radius: 10px;height: 300px")
+)
+
+fluidRow()
+
+fluidRow(
+  
+  column(6,
+         renderggiraph(
+           girafe(ggobj = gg_point())
+ )),
+  
+  column(6,
+         renderPlot({
+           radarchart(final_data(),
+                      seg = 5)}))
+  
+)
+```
