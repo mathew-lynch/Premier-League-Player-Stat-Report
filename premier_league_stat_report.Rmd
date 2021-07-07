@@ -406,8 +406,7 @@ gg_point <- reactive({(
     d = p + geom_point_interactive(data = season_goals(), aes(x=(1-Y)*100, y=X*100, size=round(xG,1), tooltip=paste0("vs. ", Opponent, "\n xG: ", round(xG,2), "\n Last action: ", lastAction)), colour = "#ffffff") +
     
     geom_point_interactive(data = penalties(), aes(x=(1-Y)*100,y=X*100,size=xG,
-                                                   tooltip=paste0("Goals scored from penalties: ", nrow(penalties()))),colour = "#000000") + 
-    
+                                                   tooltip=paste0("Goals scored from penalties: ", nrow(penalties()))),colour = "#000000") +  
   geom_text(aes(x = 2, y=59,label = input$player), hjust=0, vjust=0.5, size = 7, colour = "#ffffff")+
   geom_text(aes(x = 2, y=56,label = paste0("Expected Goals (xG): ",round(xG(),2))), hjust=0, vjust = 0.5, size = 5) +
     geom_text(aes(x = 2, y=54, label = paste0("Actual Goals: ", round(goals(), 2))), hjust=0, vjust=0.5, size=5) +
