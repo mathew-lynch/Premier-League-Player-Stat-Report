@@ -43,4 +43,4 @@ Scrapes Premier League team xG data from https://understat.com/league/EPL and re
 Scrapes Premier League player xG data from https://understat.com/league/EPL and returns a tibble of results
 
 **shot_data**:
-Scrapes shot data for a given player from https://understat.com/league/EPL and returns a tibble of results
+Scrapes shot data for a given player from https://understat.com/ and returns a tibble of results
