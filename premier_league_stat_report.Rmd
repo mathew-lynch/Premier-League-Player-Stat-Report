@@ -117,47 +117,94 @@ selectInput("player", "Select a player: ",
 
 # Determine team of player chosen
 team <- reactive({
-  player_xG$team_title[player_xG$player_name == input$player]
+  res <- player_xG$team_title[player_xG$player_name == input$player]
+  # If a player has played for two teams, we replace the comma with a forward slash
+  if (grepl(",", res)) {
+    res <- str_replace(res, ",", "/")
+  }
+  res
 })
 ```
 
 `r renderUI({HTML(paste("<b>Player:</b>", input$player, 
   sep = " ", collapse = ", "))})`
 
-`r renderUI({HTML(paste("<b>Team:</b>", team(), 
+`r renderUI({HTML(paste("<b>Team(s):</b>", team(), 
   sep = " ", collapse = ", "))})`
   
 ```{r, echo=FALSE}
 # Calculate number of wins, draws and losses for the player's team
 wins <- reactive({
-  team_xG$Wins[team_xG$Team == team()]
+  res <- team_xG$Wins[team_xG$Team == team()]
+  if (grepl("/", team())) {
+    res1 <- team_xG$Wins[team_xG$Team == strsplit(team(), "/")[[1]][1]]
+    res2 <- team_xG$Wins[team_xG$Team == strsplit(team(), "/")[[1]][2]]
+    res <- paste(res1, res2, sep = "/")
+  }
+  res
 }) 
 
 draws <- reactive({
-  team_xG$Draws[team_xG$Team == team()]
+  res <- team_xG$Draws[team_xG$Team == team()]
+  if (grepl("/", team())) {
+    res1 <- team_xG$Draws[team_xG$Team == strsplit(team(), "/")[[1]][1]]
+    res2 <- team_xG$Draws[team_xG$Team == strsplit(team(), "/")[[1]][2]]
+    res <- paste(res1, res2, sep = "/")
+  }
+  res
 })
 
 losses <- reactive({
-  team_xG$Losses[team_xG$Team == team()]
+  res <- team_xG$Losses[team_xG$Team == team()]
+  if (grepl("/", team())) {
+    res1 <- team_xG$Losses[team_xG$Team == strsplit(team(), "/")[[1]][1]]
+    res2 <- team_xG$Losses[team_xG$Team == strsplit(team(), "/")[[1]][2]]
+    res <- paste(res1, res2, sep = "/")
+  }
+  res
 })
 ```
 
 ```{r, echo=FALSE}
 # Calculate home/away win percentage and rankings
 home_win <- reactive({
-  home_rankings$PERCENTAGE[home_rankings$TEAM == team() & home_rankings$OUTCOME == "WIN"]
+  res <- percent(home_rankings$PERCENTAGE[home_rankings$TEAM == team() & home_rankings$OUTCOME == "WIN"])
+  if (grepl("/", team())) {
+    res1 <- percent(home_rankings$PERCENTAGE[home_rankings$TEAM == strsplit(team(), "/")[[1]][1] & home_rankings$OUTCOME == "WIN"])
+    res2 <- percent(home_rankings$PERCENTAGE[home_rankings$TEAM == strsplit(team(), "/")[[1]][2] & home_rankings$OUTCOME == "WIN"])
+    res <- paste(res1, res2, sep = "/")
+  }
+  res
 })
 
 home_win_ranking <- reactive({
-  home_rankings$RANK[home_rankings$TEAM == team() & home_rankings$OUTCOME == "WIN"]
+  res <- home_rankings$RANK[home_rankings$TEAM == team() & home_rankings$OUTCOME == "WIN"]
+  if (grepl("/", team())) {
+    res1 <- home_rankings$RANK[home_rankings$TEAM == strsplit(team(), "/")[[1]][1] & home_rankings$OUTCOME == "WIN"]
+    res2 <- home_rankings$RANK[home_rankings$TEAM == strsplit(team(), "/")[[1]][2] & home_rankings$OUTCOME == "WIN"]
+    res <- paste(res1, res2, sep = "/")
+  }
+  res
 })
 
 away_win <- reactive({
-  away_rankings$PERCENTAGE[away_rankings$TEAM == team() & away_rankings$OUTCOME == "WIN"]
+    res <- percent(away_rankings$PERCENTAGE[away_rankings$TEAM == team() & away_rankings$OUTCOME == "WIN"])
+  if (grepl("/", team())) {
+    res1 <- percent(away_rankings$PERCENTAGE[away_rankings$TEAM == strsplit(team(), "/")[[1]][1] & away_rankings$OUTCOME == "WIN"])
+    res2 <- percent(away_rankings$PERCENTAGE[away_rankings$TEAM == strsplit(team(), "/")[[1]][2] & away_rankings$OUTCOME == "WIN"])
+    res <- paste(res1, res2, sep = "/")
+  }
+  res
 })
 
 away_win_ranking <- reactive({
-  away_rankings$RANK[away_rankings$TEAM == team() & away_rankings$OUTCOME == "WIN"]
+  res <- away_rankings$RANK[away_rankings$TEAM == team() & away_rankings$OUTCOME == "WIN"]
+  if (grepl("/", team())) {
+    res1 <- away_rankings$RANK[away_rankings$TEAM == strsplit(team(), "/")[[1]][1] & away_rankings$OUTCOME == "WIN"]
+    res2 <- away_rankings$RANK[away_rankings$TEAM == strsplit(team(), "/")[[1]][2] & away_rankings$OUTCOME == "WIN"]
+    res <- paste(res1, res2, sep = "/")
+  }
+  res
 })
 
 ```
@@ -240,11 +287,11 @@ pos_neg_A <- reactive({
 
 `r renderUI({HTML(paste("<b>", team(), "</b>"))})` have won `r renderText({wins()})` matches in the 2021/2022 Premier League season, drawing `r renderText({draws()})` and losing `r renderText({losses()})`.
 
-Their home win percentage of `r renderText({label_percent()(home_win())})` ranks `r renderText({home_win_ranking()})` in the league, and their away win percentage of `r renderText({label_percent()(away_win())})` ranks at `r renderText({away_win_ranking()})`.
+Their home win percentage(s) of `r renderText({home_win()})` ranks `r renderText({home_win_ranking()})` in the league, and their away win percentage of `r renderText({away_win()})` ranks at `r renderText({away_win_ranking()})`.
 
-`r renderUI({HTML(paste("<b>", input$player, "</b>"))})` has scored `r renderText({goals()})` goals in the 2021/2022 season from an xG of `r renderText({round(xG(),2)})`, a `r renderText({pos_neg()})` delta of `r renderText({round(xG_delta(),2)})`. This means that he is `r renderText({performance()})` his xG this season.
+`r renderUI({HTML(paste("<b>", input$player, "</b>"))})` has scored `r renderText({goals()})` goal(s) in the 2021/2022 season from an xG of `r renderText({round(xG(),2)})`, a `r renderText({pos_neg()})` delta of `r renderText({round(xG_delta(),2)})`. This means that he is `r renderText({performance()})` his xG this season.
 
-The `r renderUI({HTML(paste("<b>", team(), "</b>"))})` player also has an xA of `r renderText({round(xA(),2)})`, from which he has recorded `r renderText({assists()})` assists, a `r renderText({pos_neg_A()})` delta of `r renderText({round(xA_delta(),2)})`. He is `r renderText({performance_A()})` his xA this season.
+The `r renderUI({HTML(paste("<b>", team(), "</b>"))})` player also has an xA of `r renderText({round(xA(),2)})`, from which he has recorded `r renderText({assists()})` assist(s), a `r renderText({pos_neg_A()})` delta of `r renderText({round(xA_delta(),2)})`. He is `r renderText({performance_A()})` his xA this season.
 
 ***
 
