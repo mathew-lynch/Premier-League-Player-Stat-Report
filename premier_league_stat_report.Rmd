@@ -1,5 +1,5 @@
 ---
-title: "Premier League 2022/2023 Player Stat Report"
+title: "Premier League 2023/2024 Player Stat Report"
 output: 
   html_document:
     theme: united
@@ -26,16 +26,16 @@ library(RColorBrewer)
 library(fmsb)
 
 # Team names - these are different for different data sources (i.e. ESPN and Understat)
-results_team_names = c("AFC Bournemouth", "Arsenal", "Aston Villa", "Brentford", "Brighton & Hove Albion", "Chelsea",
-                       "Crystal Palace", "Everton", "Fulham", "Leeds United", "Leicester City",
-                       "Liverpool", "Manchester City", "Manchester United", "Newcastle United",
-                       "Nottingham Forest", "Southampton", "Tottenham Hotspur",
+results_team_names = c("AFC Bournemouth", "Arsenal", "Aston Villa", "Brentford", "Brighton & Hove Albion", "Burnley", "Chelsea",
+                       "Crystal Palace", "Everton", "Fulham",
+                       "Liverpool", "Luton Town", "Manchester City", "Manchester United", "Newcastle United",
+                       "Nottingham Forest", "Sheffield United", "Tottenham Hotspur",
                        "West Ham United", "Wolverhampton Wanderers")
 
-xG_team_names = c("Bournemouth", "Arsenal", "Aston Villa", "Brentford", "Brighton", "Chelsea",
-                  "Crystal Palace", "Everton", "Fulham", "Leeds", "Leicester",
-                  "Liverpool", "Manchester City", "Manchester United", "Newcastle United",
-                  "Nottingham Forest", "Southampton", "Tottenham",
+xG_team_names = c("Bournemouth", "Arsenal", "Aston Villa", "Brentford", "Brighton", "Burnley", "Chelsea",
+                  "Crystal Palace", "Everton", "Fulham",
+                  "Liverpool", "Luton", "Manchester City", "Manchester United", "Newcastle United",
+                  "Nottingham Forest", "Sheffield United", "Tottenham",
                   "West Ham", "Wolverhampton Wanderers")
 
 
@@ -61,15 +61,13 @@ away_rankings <- away_rankings(processed_results, team_names)
 # Make team names consistent across all dataframes
 home_rankings <- replace(home_rankings, home_rankings == "AFC Bournemouth", "Bournemouth")
 home_rankings <- replace(home_rankings, home_rankings == "Brighton & Hove Albion", "Brighton")
-home_rankings <- replace(home_rankings, home_rankings == "Leeds United", "Leeds")
-home_rankings <- replace(home_rankings, home_rankings == "Leicester City", "Leicester")
+home_rankings <- replace(home_rankings, home_rankings == "Luton Town", "Luton")
 home_rankings <- replace(home_rankings, home_rankings == "Tottenham Hotspur", "Tottenham")
 home_rankings <- replace(home_rankings, home_rankings == "West Ham United", "West Ham")
 
 away_rankings <- replace(away_rankings, away_rankings == "AFC Bournemouth", "Bournemouth")
 away_rankings <- replace(away_rankings, away_rankings == "Brighton & Hove Albion", "Brighton")
-away_rankings <- replace(away_rankings, away_rankings == "Leeds United", "Leeds")
-away_rankings <- replace(away_rankings, away_rankings == "Leicester City", "Leicester")
+away_rankings <- replace(away_rankings, away_rankings == "Luton Town", "Luton")
 away_rankings <- replace(away_rankings, away_rankings == "Tottenham Hotspur", "Tottenham")
 away_rankings <- replace(away_rankings, away_rankings == "West Ham United", "West Ham")
 
@@ -113,7 +111,7 @@ Data from ESPN.co.uk Premier League results: espn.co.uk/football/ and understat.
 # Select a player
 selectInput("player", "Select a player: ",
             choices = player_xG$player_name,
-            selected = "Harry Kane",
+            selected = "Erling Haaland",
             multiple = FALSE)
 
 # Determine team of player chosen
@@ -286,11 +284,11 @@ pos_neg_A <- reactive({
 })
 ```
 
-`r renderUI({HTML(paste("<b>", team(), "</b>"))})` have won `r renderText({wins()})` matches in the 2022/2023 Premier League season, drawing `r renderText({draws()})` and losing `r renderText({losses()})`.
+`r renderUI({HTML(paste("<b>", team(), "</b>"))})` have won `r renderText({wins()})` matches in the 2023/2024 Premier League season, drawing `r renderText({draws()})` and losing `r renderText({losses()})`.
 
 Their home win percentage(s) of `r renderText({home_win()})` ranks `r renderText({home_win_ranking()})` in the league, and their away win percentage of `r renderText({away_win()})` ranks at `r renderText({away_win_ranking()})`.
 
-`r renderUI({HTML(paste("<b>", input$player, "</b>"))})` has scored `r renderText({goals()})` goal(s) in the 2022/2023 season from an xG of `r renderText({round(xG(),2)})`, a `r renderText({pos_neg()})` delta of `r renderText({round(xG_delta(),2)})`. This means that he is `r renderText({performance()})` his xG this season.
+`r renderUI({HTML(paste("<b>", input$player, "</b>"))})` has scored `r renderText({goals()})` goal(s) in the 2023/2024 season from an xG of `r renderText({round(xG(),2)})`, a `r renderText({pos_neg()})` delta of `r renderText({round(xG_delta(),2)})`. This means that he is `r renderText({performance()})` his xG this season.
 
 The `r renderUI({HTML(paste("<b>", team(), "</b>"))})` player also has an xA of `r renderText({round(xA(),2)})`, from which he has recorded `r renderText({assists()})` assist(s), a `r renderText({pos_neg_A()})` delta of `r renderText({round(xA_delta(),2)})`. He is `r renderText({performance_A()})` his xA this season.
 
@@ -303,13 +301,9 @@ create_ShotMap <- function(grass_colour, line_colour, background_colour, goal_co
 
   theme_blankPitch = function(size=12) {
     theme(
-      #axis.line=element_blank(),
       axis.text.x=element_blank(),
       axis.text.y=element_blank(),
-      #axis.ticks.y=element_text(size=size),
-      #   axis.ticks=element_blank(),
       axis.ticks.length=unit(0, "lines"),
-      #axis.ticks.margin=unit(0, "lines"),
       axis.title.x=element_blank(),
       axis.title.y=element_blank(),
       legend.background=element_rect(fill=background_colour, colour=NA),
@@ -318,7 +312,7 @@ create_ShotMap <- function(grass_colour, line_colour, background_colour, goal_co
       legend.text=element_text(size=size),
       legend.title=element_text(size=size, face="bold",hjust=0),
       strip.background = element_rect(colour = background_colour, fill = background_colour, 
-                                      size = .5),
+                                      linewidth = .5),
       panel.background=element_rect(fill=background_colour,colour=background_colour),
       panel.grid.major=element_blank(),
       panel.grid.minor=element_blank(),
@@ -383,7 +377,7 @@ create_ShotMap <- function(grass_colour, line_colour, background_colour, goal_co
     geom_path(data=dArc, aes(x=x,y=y), colour = line_colour) +
     # add the goal offensive
     geom_segment(aes(x = goalPostLeft, y = xmax, xend = goalPostRight, yend = xmax),
-                 colour = goal_colour, size = 1)
+                 colour = goal_colour, linewidth = 1)
 
   return(p)
 
@@ -414,12 +408,12 @@ shots_data <- reactive({(
   return(a)
 })
 
-# Filter by 2022/2023 season and by goals
+# Filter by 2023/2024 season and by goals
 season_goals <- reactive({(
   if (nrow(shots_data()) == 0) {
     b = data.frame()
   } else {
-    b = shots_data()[shots_data()$year == "2022" & shots_data()$result == "Goal",]
+    b = shots_data()[shots_data()$year == "2023" & shots_data()$result == "Goal",]
   })
   return(b)
 })
@@ -504,7 +498,7 @@ fluidRow()
 fluidRow(
   
   column(6,
-         renderggiraph(
+         renderGirafe(
            girafe(ggobj = gg_point())
  )),
   
